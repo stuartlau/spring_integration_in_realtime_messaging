@@ -96,6 +96,257 @@
 					* Gateway
 
 				</section>
+				<section data-markdown>
+					#### 1.Message
+
+![Message](http://docs.spring.io/spring-integration/reference/htmlsingle/images/message.jpg)
+
+* Comprised of *Payload* and *Headers*
+* *Payload* is your business Object
+* *Header* takes additional K-V data, like *Context* in Web development which takes IP, SessionId, or fields like cc, bcc, title in an Email scenario that don't belong to text body
+* PreDefined fields: *UUID*, *Timestamp*, *ReplyChannel*, *CorrelationId*
+
+				</section>
+				<section data-markdown>
+					#### 2.Channel
+* *Queue* that holds *Message*
+* Decouple producer and consumer, no need to invoke put() or get(), all encapsulated internally
+* *Point2Point*&*PubSub* 
+* *Inbound*&*Outbound*
+![](http://docs.spring.io/spring-integration/reference/htmlsingle/images/channel.jpg)
+* *Pollable* Channel, enabling buffering and sheduling
+* *Priority* Channel, using Comparator
+* *Subscribable* Channel, message driven
+* DataType setting supported, no chance for messy data
+* Interceptor supported, e.g. `preSend`, `preReceive`, `afterReceiveCompletion`, etc. Usage: `logging`, `counting`, etc.
+* Wire-tap *Message* to another *Channel*(same data)
+e.g. you can make the *Messages* in a *Channel* also flow to another one at the same time
+
+				</section>
+				<section data-markdown>
+					```xml
+<int:channel id="submissionChannel" datatype="io.github.stuartlau.si.model
+.InputWrapper">
+        <int:interceptors>
+            <int:wire-tap channel="loggerChannel"/>
+        </int:interceptors>
+</int:channel>
+```
+e.g. or you can use a wire-tap with a pattern, no need to configure inside a channel
+
+```xml
+<int:wire-tap pattern="*ActionChannel, markdownRequestChannel" order="0" channel="metricsWiretapChannel"/>
+```
+
+				</section data-markdown>
+
+				<section>
+					#### 3.Filter
+* Filter out invalid *Messages*, lessen the load of backend service
+* Ignore invalid *Messages* using exception or throw them using another *Channel*, depends on your business
+* Exception *Channel* for *Subscribers* to consume
+
+
+				</section>
+				<section data-markdown>
+					e.g. filter invalid *Message* and throw them into *filterErrorChannel*
+
+```xml
+<int:channel id="filterErrorChannel" />
+
+<int:filter ref="markdownRequestFilter" throw-exception-on-rejection="false" discard-channel="filterErrorChannel" />
+```
+				</section>
+
+				<section data-markdown>
+					#### 4.Splitter
+					* Split composition message to component messages
+					* From Object to a collection of Objects
+
+					e.g. *splitter* splits *Message* from *markdownRequestChannel1* and put the pieces to *markdownRequestChannel2*
+
+					```xml
+					<int:splitter id="splitter" ref="markdownRequestSplitter" input-channel="markdownRequestChannel1" output-channel="markdownRequestChannel2"/>
+					```
+				</section>
+
+				<section data-markdown>
+					#### 5.Router
+![Router](http://docs.spring.io/spring-integration/reference/htmlsingle/images/router.jpg)
+
+* Route different messages in a *Channel* to different *Channels*
+* Different *Channels* consumed by different *Subscribers*, like *Strategy Pattern*
+
+				</section>
+					
+
+				<section data-markdown>
+					e.g. route messages in *submissionChannel* to different channels using self-defined strategy, and default-output-channel could consume no-routing ones, no one is ignored
+
+XML
+
+```xml
+<int:router input-channel="submissionChannel" ref="markdownActionRouter" default-output-channel="defaultRouterChannel" />
+```
+
+Interface
+
+```java
+public String route(InputWrapper inputWrapper) {
+    String channelName;
+    // choose with channel this message should be sent to
+    // return the name of the channel
+	return channelName;
+}
+```
+				</section>
+
+				<section data-markdown>
+					#### 6.Transformer
+* Change the content of the *Payload* of *Message*, e.g. add, edit or delete values
+* Change to another type of Payload type, e.g. BatchelorBean to MasterBean, MasterBean to DoctorBean
+
+				</section>
+
+				<section data-markdown>
+					e.g. add *InventoryPicture* data into the *Payload* of *Message*
+
+XML
+
+```
+<int:transformer id="inventoryPicTransformer" ref="inventoryPicTransformer"/>
+```
+
+Interface
+
+
+```java
+public InputWrapper transform(Message<InputWrapper> message) {
+		InputWrapper inputWrapper = message.getPayload();
+        GetDataByFnskuScopeResponse response = sdvpServiceInvoker.getInventoryInfoData(inputWrapper);
+        extractInventoryInfoData(inputWrapper, response);
+        return inputWrapper;
+}
+
+```
+				</section>
+
+
+				<section data-markdown>
+					#### 7.Activator
+* Endpoint to handle *Message*
+* *Inbound* Channel must be provided
+* Outsourcing behavior can be controlled by *Outbound* Channel if provided, or else no output
+
+				</section>
+
+
+				<section data-markdown>
+					e.g an *Activator* consuming a channel and output the result to another channel
+
+
+```xml
+<int:service-activator input-channel="createActionChannel" output-channel="publishChannel" ref="createMarkdownProcessor" >
+</int:service-activator>
+```
+
+e.g. no output at all
+
+```xml
+<int:service-activator input-channel="metricsWiretapChannel" ref="monitorActivator" />
+```
+				</section>
+
+				<section data-markdown>
+					#### 8.Chain
+* Combine the above components as a big entity that work together like a flow
+* Single Inbound Channel and OutBound Channel for the whole components
+* All components in a *Chain* are executed in a sequential order
+
+* *Chain* could be connected with each other with *Channel*
+
+				</section>
+
+				<section data-markdown>
+					e.g. a chain to process InputData(from the very beginning data to the final business data) and output to another channel for its subscribers to consume
+
+```xml
+<int:chain id="inputCollectionSubmissionChain" input-channel="inputCollectionSubmissionChannel" output-channel="submissionChannel">
+        <int:poller task-executor="inputCollectionExecutor" fixed-rate="1" error-channel="inputErrorChannel"/>
+        <int:header-enricher>
+            <int:header name="request" ref="markdownRequestEnricher" method="getRequest" />
+            <int:header name="startDate" ref="startDateEnricher" method="getProcessStartDate" />
+        </int:header-enricher>
+        <int:transformer id="submissionInputWrapperTransformer" ref="submissionInputWrapperTransformer"/>
+        <int:transformer id="quantityTransformer" ref="quantityTransformer"/>
+        <int:transformer id="durationTransformer" ref="durationTransformer"/>
+</int:chain>
+```
+				</section>
+
+
+				<section data-markdown>
+					#### 9.Gateway
+* Place *Message* into a *Channel* and kick off the rest of Spring Integration components
+* Dependency to insourcing service
+
+				</section>
+
+				<section data-markdown>
+					XML
+
+```xml
+<int:gateway id="messagePlacer" service-interface="io.github.stuartlau.si.gateway.MessagePlacer" default-request-channel="markdownRequestChannel" />
+```
+
+Interface
+
+```java
+public interface MessagePlacer {
+    void place(MarkdownRequest request);
+}
+```
+				</section>
+
+
+				<section data-markdown>
+					## New Design Using Spring Integration
+* Internal queues are out of the box, no need to implement the basic stuff and focus on business
+* More flexible to test with single or multiple threads
+* Interceptors are everything, logging, monitoring, debugging
+* Easy to test each component, no coupling, the gluing is under the flow
+* Construct structures using XML is more readable and deployment friendly
+* A standard framework focusing on message processing: routing, filtering, splitting, transforming, aggregating and exception handling can be achieved with less code(and UT) and has more extensibility
+
+				</section>
+
+				<section data-markdown>
+					## Messaging Flow
+
+![Messaging_Flow](http://stuartlau.github.io/img/in-post/messaging_flow.jpg)
+
+				</section>
+
+				<section data-markdown>
+					## Pro and Con
+* When your problem is broken into lots of small ones, and the boundaries are clear, you need a 
+standard way to manage them efficiently, use SI
+* When you want other developers get a better and quick whole picture of your complicated message processing system, use SI
+
+* When your problem is not complicated enough, just implement with your own framework
+
+				</section>
+
+				<section data-markdown>
+					## Reference
+* [http://projects.spring.io/spring-integration/](http://projects.spring.io/spring-integration/)
+* [https://github.com/spring-projects/spring-integration-samples/](https://github.com/spring-projects/spring-integration-samples/)
+* [https://docs.spring.io/spring-integration/docs/](https://docs.spring.io/spring-integration/docs/)
+* [www.eaipatterns.com](www.eaipatterns.com)
+* [http://camel.apache.org/](http://camel.apache.org/)
+* [https://www.mulesoft.com](https://www.mulesoft.com)
+
+				</section>
 			</div>
 		</div>
 
