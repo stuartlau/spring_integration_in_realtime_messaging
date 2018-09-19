@@ -43,6 +43,8 @@
 					* Filtering, e.g. unsupported Realm, invalid data
 					* Multi-Threading, lots of Producer&Consumer scenarios
 					* Dependent on other services getting required data based on different data type, e.g. SDVP data, config data
+					</section>
+				<section data-markdown>
 					* Logics to compute core business values, e.g. Duration, Qty
 					* A classic messaging process, consuming data -> validity checking -> filter out invalid -> splitting -> routing to different handlers -> different execution -> publishing
 
@@ -51,6 +53,9 @@
 					## Old Design with Self-Implemented Framework
 					* All the logics such as blocking queues(e.g. *ArrayListBlockingQueue*), multiple threading(e.g. *ExecutorService*), pub-sub are self-implemented, wasting time in writing non-business UTs, e.g. queue functions
 					* All the input collection logics using *Chain Strategy*, not easy to get a quick view and painful to change structure
+					
+				</section>
+				<section data-markdown>
 					* Filter logic resides in the heart of business logic, not SRP
 					* Some logics are roughly coupled or don't know where exactly it should be, e.g. Splitting resides with message receiving logic
 					* Exception handling is everywhere and hard to extract as extensible component
@@ -59,6 +64,7 @@
 					* Add new code when data is desired by other component 
 					* High maintenance
 					* Boundary between components is vague
+
 				</section>
 				<section data-markdown>
 					## Spring Integration Introduction
@@ -69,13 +75,15 @@
 					* Enables lightweight messaging within Spring-based applications
 					* Supports integration with external systems via declarative adapters(File, FTP, JMS, TCP, HTTP, JDBC, etc)
 					* Provides a higher-level of abstraction over Spring's support for remoting, messaging, and scheduling
-
+				</section>
+				<section data-markdown>
 					Spring Integration is motivated by the following goals: 
 
 					* Provide a simple model for implementing complex enterprise integration solutions
 					* Facilitate asynchronous, message-driven behavior within a Spring-based application
 					* Promote intuitive, incremental adoption for existing Spring users
-
+				</section>
+				<section data-markdown>
 					Spring Integration is guided by the following principles: 
 
 					* Components should be loosely coupled for modularity and testability
@@ -113,34 +121,41 @@
 * Decouple producer and consumer, no need to invoke put() or get(), all encapsulated internally
 * *Point2Point*&*PubSub* 
 * *Inbound*&*Outbound*
+
 ![](http://docs.spring.io/spring-integration/reference/htmlsingle/images/channel.jpg)
-* *Pollable* Channel, enabling buffering and sheduling
+
+
+				</section>
+
+				<section data-markdown>
+					* *Pollable* Channel, enabling buffering and sheduling
 * *Priority* Channel, using Comparator
 * *Subscribable* Channel, message driven
 * DataType setting supported, no chance for messy data
 * Interceptor supported, e.g. `preSend`, `preReceive`, `afterReceiveCompletion`, etc. Usage: `logging`, `counting`, etc.
 * Wire-tap *Message* to another *Channel*(same data)
-e.g. you can make the *Messages* in a *Channel* also flow to another one at the same time
 
 				</section>
 				<section data-markdown>
+					e.g. you can make the *Messages* in a *Channel* also flow to another one at the same time
 					```xml
-<int:channel id="submissionChannel" datatype="io.github.stuartlau.si.model
-.InputWrapper">
-        <int:interceptors>
-            <int:wire-tap channel="loggerChannel"/>
-        </int:interceptors>
-</int:channel>
+&lt;int:channel id=&quot;submissionChannel&quot; datatype=&quot;io.github.stuartlau.si.model
+.InputWrapper&quot;&gt;
+        &lt;int:interceptors&gt;
+            &lt;int:wire-tap channel=&quot;loggerChannel&quot;/&gt;
+        &lt;/int:interceptors&gt;
+&lt;/int:channel&gt;
 ```
 e.g. or you can use a wire-tap with a pattern, no need to configure inside a channel
 
 ```xml
-<int:wire-tap pattern="*ActionChannel, markdownRequestChannel" order="0" channel="metricsWiretapChannel"/>
+&lt;int:wire-tap pattern=&quot;*ActionChannel, markdownRequestChannel&quot; order=&quot;0&quot; channel=&quot;metricsWiretapChannel&quot;/&gt;
+
 ```
 
-				</section data-markdown>
+				</section>
 
-				<section>
+				<section data-markdown>
 					#### 3.Filter
 * Filter out invalid *Messages*, lessen the load of backend service
 * Ignore invalid *Messages* using exception or throw them using another *Channel*, depends on your business
@@ -152,9 +167,9 @@ e.g. or you can use a wire-tap with a pattern, no need to configure inside a cha
 					e.g. filter invalid *Message* and throw them into *filterErrorChannel*
 
 ```xml
-<int:channel id="filterErrorChannel" />
+&lt;int:channel id=&quot;filterErrorChannel&quot; /&gt;
 
-<int:filter ref="markdownRequestFilter" throw-exception-on-rejection="false" discard-channel="filterErrorChannel" />
+&lt;int:filter ref=&quot;markdownRequestFilter&quot; throw-exception-on-rejection=&quot;false&quot; discard-channel=&quot;filterErrorChannel&quot; /&gt;
 ```
 				</section>
 
@@ -166,7 +181,7 @@ e.g. or you can use a wire-tap with a pattern, no need to configure inside a cha
 					e.g. *splitter* splits *Message* from *markdownRequestChannel1* and put the pieces to *markdownRequestChannel2*
 
 					```xml
-					<int:splitter id="splitter" ref="markdownRequestSplitter" input-channel="markdownRequestChannel1" output-channel="markdownRequestChannel2"/>
+					&lt;int:splitter id=&quot;splitter&quot; ref=&quot;markdownRequestSplitter&quot; input-channel=&quot;markdownRequestChannel1&quot; output-channel=&quot;markdownRequestChannel2&quot;/&gt;
 					```
 				</section>
 
@@ -186,7 +201,7 @@ e.g. or you can use a wire-tap with a pattern, no need to configure inside a cha
 XML
 
 ```xml
-<int:router input-channel="submissionChannel" ref="markdownActionRouter" default-output-channel="defaultRouterChannel" />
+&lt;int:router input-channel=&quot;submissionChannel&quot; ref=&quot;markdownActionRouter&quot; default-output-channel=&quot;defaultRouterChannel&quot; /&gt;
 ```
 
 Interface
@@ -212,9 +227,9 @@ public String route(InputWrapper inputWrapper) {
 					e.g. add *InventoryPicture* data into the *Payload* of *Message*
 
 XML
+```xml
+&lt;int:transformer id=&quot;inventoryPicTransformer&quot; ref=&quot;inventoryPicTransformer&quot;/&gt;
 
-```
-<int:transformer id="inventoryPicTransformer" ref="inventoryPicTransformer"/>
 ```
 
 Interface
@@ -244,16 +259,16 @@ public InputWrapper transform(Message<InputWrapper> message) {
 				<section data-markdown>
 					e.g an *Activator* consuming a channel and output the result to another channel
 
-
-```xml
-<int:service-activator input-channel="createActionChannel" output-channel="publishChannel" ref="createMarkdownProcessor" >
-</int:service-activator>
+```
+&lt;int:service-activator input-channel=&quot;createActionChannel&quot; output-channel=&quot;publishChannel&quot; ref=&quot;createMarkdownProcessor&quot; &gt;
+&lt;/int:service-activator&gt;
 ```
 
 e.g. no output at all
 
 ```xml
-<int:service-activator input-channel="metricsWiretapChannel" ref="monitorActivator" />
+&lt;int:service-activator input-channel=&quot;metricsWiretapChannel&quot; ref=&quot;monitorActivator&quot; /&gt;
+
 ```
 				</section>
 
@@ -271,16 +286,16 @@ e.g. no output at all
 					e.g. a chain to process InputData(from the very beginning data to the final business data) and output to another channel for its subscribers to consume
 
 ```xml
-<int:chain id="inputCollectionSubmissionChain" input-channel="inputCollectionSubmissionChannel" output-channel="submissionChannel">
-        <int:poller task-executor="inputCollectionExecutor" fixed-rate="1" error-channel="inputErrorChannel"/>
-        <int:header-enricher>
-            <int:header name="request" ref="markdownRequestEnricher" method="getRequest" />
-            <int:header name="startDate" ref="startDateEnricher" method="getProcessStartDate" />
-        </int:header-enricher>
-        <int:transformer id="submissionInputWrapperTransformer" ref="submissionInputWrapperTransformer"/>
-        <int:transformer id="quantityTransformer" ref="quantityTransformer"/>
-        <int:transformer id="durationTransformer" ref="durationTransformer"/>
-</int:chain>
+&lt;int:chain id=&quot;inputCollectionSubmissionChain&quot; input-channel=&quot;inputCollectionSubmissionChannel&quot; output-channel=&quot;submissionChannel&quot;&gt;
+        &lt;int:poller task-executor=&quot;inputCollectionExecutor&quot; fixed-rate=&quot;1&quot; error-channel=&quot;inputErrorChannel&quot;/&gt;
+        &lt;int:header-enricher&gt;
+            &lt;int:header name=&quot;request&quot; ref=&quot;markdownRequestEnricher&quot; method=&quot;getRequest&quot; /&gt;
+            &lt;int:header name=&quot;startDate&quot; ref=&quot;startDateEnricher&quot; method=&quot;getProcessStartDate&quot; /&gt;
+        &lt;/int:header-enricher&gt;
+        &lt;int:transformer id=&quot;submissionInputWrapperTransformer&quot; ref=&quot;submissionInputWrapperTransformer&quot;/&gt;
+        &lt;int:transformer id=&quot;quantityTransformer&quot; ref=&quot;quantityTransformer&quot;/&gt;
+        &lt;int:transformer id=&quot;durationTransformer&quot; ref=&quot;durationTransformer&quot;/&gt;
+&lt;/int:chain&gt;
 ```
 				</section>
 
@@ -296,7 +311,7 @@ e.g. no output at all
 					XML
 
 ```xml
-<int:gateway id="messagePlacer" service-interface="io.github.stuartlau.si.gateway.MessagePlacer" default-request-channel="markdownRequestChannel" />
+&lt;int:gateway id=&quot;messagePlacer&quot; service-interface=&quot;io.github.stuartlau.si.gateway.MessagePlacer&quot; default-request-channel=&quot;markdownRequestChannel&quot;/&gt;
 ```
 
 Interface
